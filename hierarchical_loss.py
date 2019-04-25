@@ -22,13 +22,14 @@ def get_idxs(flat_tree_form):
       childless: list of idxs of the childless
     '''
     parents = []
-    children = []
+    children = [[] for _ in range(len(flat_tree_form) - 1)]
     childless = []
     mp = []
     p = []
     c = 0
     for n in flat_tree_form:
         for i in range(c, c + n): parents += [p + [i]]
+        if len(p) > 0: children[p[-1]] = list(range(c, c+n))
         if n == 0:
             childless += [p[-1]]
             p[-1] += 1
@@ -60,6 +61,14 @@ def gen_ex(bs, p, c):
     exposed_x = np.random.normal(true_x, .1, size = (16, bs)).T
     return exposed_x, exposed_y, true_x, true_y
 
+def interpret(rp, num_root, children, prob = 0.5):
+    max_idx = np.argmax(rp[:num_root])
+    max_val = rp[max_idx]
+    while max_val > prob:
+        max_idx = np.argmax(rp[children[max_idx]])
+        max_val = rp[max_idx]
+    return max_idx
+
 EPS = 1e-10
 
 tree_dict = {'animal': {'cat': {'big-cat': {'lion': '', 'tiger': ''},
@@ -71,8 +80,9 @@ tree_dict = {'animal': {'cat': {'big-cat': {'lion': '', 'tiger': ''},
                                    'weak': {'ch3nh2': '', 'nh3': '', 'nh4oh': ''}}}}
 
 class_list, n = get_dict_item(tree_dict)
+num_root = len(n)
 lenl = len(class_list)
-n_flat = [len(n)] + list(flatten(n))
+n_flat = [num_root] + list(flatten(n))
 subsoftmax_idx = np.cumsum([0] + n_flat, dtype = np.int32)
 
 parents, children, childless = get_idxs(n_flat)
@@ -107,3 +117,6 @@ with tf.Session() as sess:
         x_b, y_b, x_gt, y_gt = gen_ex(8, parents, childless)
         _, l, rp = sess.run([train_op, loss, raw_probs], feed_dict = {x: x_b, y: y_b})
         print(l)
+    for r, gt in zip(rp, y_gt):
+        pred_class = interpret(r, num_root, children)
+        print(class_list[pred_class], class_list[gt])
