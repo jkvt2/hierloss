@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from utils import get_dict_item, get_idxs, flatten, gen_ex, interpret
+from utils import gen_ex, interpret
 
 def wordtree_loss(logits, labels, word_tree, epsilon = 1e-5):
     '''
@@ -17,9 +17,9 @@ def wordtree_loss(logits, labels, word_tree, epsilon = 1e-5):
         loss: Tensor of shape (batch_size, ), giving the loss for each example.
         raw_probs: The probability for each class (given its parents).
     '''
-    _, n = get_dict_item(word_tree)
-    n_flat = [len(n)] + list(flatten(n))
-    parents, _, _ = get_idxs(n_flat)
+    _, n = _get_dict_item(word_tree)
+    n_flat = [len(n)] + list(_flatten(n))
+    parents, _, _ = _get_idxs(n_flat)
     
     subsoftmax_idx = np.cumsum([0] + n_flat, dtype = np.int32)
     
@@ -32,7 +32,57 @@ def wordtree_loss(logits, labels, word_tree, epsilon = 1e-5):
     
     loss = tf.reduce_sum(-tf.log(probs + epsilon) * labels, 1)
     return loss, raw_probs
-    
+
+def _get_dict_item(d):
+    l = []; n = []
+    if type(d) is dict:
+        keys, items = zip(*sorted(d.items(), key = lambda x:x[0]))
+        l += list(keys)
+        for key, item in zip(keys, items):
+            _l, _n = _get_dict_item(item)
+            l += [key + '/' +i for i in _l]
+            n += [_n]
+    else:
+        return d, 0
+    return l, n
+
+def _get_idxs(flat_tree_form):
+    '''
+    return parents, children, childless
+      parents: list of lists of idxs of parents of each child
+      children: list of lists of idxs of children of each parent
+      childless: list of idxs of the childless
+    '''
+    parents = []
+    children = [[] for _ in range(len(flat_tree_form) - 1)]
+    childless = []
+    mp = []
+    p = []
+    c = 0
+    for n in flat_tree_form:
+        for i in range(c, c + n): parents += [p + [i]]
+        if len(p) > 0: children[p[-1]] = list(range(c, c+n))
+        if n == 0:
+            childless += [p[-1]]
+            p[-1] += 1
+            while p[-1] == mp[-1] and len(p) > 1:
+                p.pop(-1); mp.pop(-1)
+                p[-1] += 1
+        else:
+            p += [c]
+            mp += [c + n]
+        c += n
+    return parents, children, childless
+
+def _flatten(l):
+    for i in l:
+        if type(i) is list:
+            yield len(i)
+            for f in _flatten(i):
+                yield f
+        else:
+            yield i
+
 
 if __name__ == '__main__':
     np.random.seed(0)
@@ -46,13 +96,13 @@ if __name__ == '__main__':
                               'base': {'strong': {'koh': '', 'naoh': ''},
                                        'weak': {'ch3nh2': '', 'nh3': '', 'nh4oh': ''}}}}
     
-    class_list, n = get_dict_item(word_tree)
+    class_list, n = _get_dict_item(word_tree)
     num_root = len(n)
-    n_flat = [num_root] + list(flatten(n))
+    n_flat = [num_root] + list(_flatten(n))
     n_classes = len(n_flat) - 1
     n_filters = 16
     
-    parents, children, childless = get_idxs(n_flat)
+    parents, children, childless = _get_idxs(n_flat)
     
     y_b = np.array(range(n_classes))
     num_ex = len(y_b)

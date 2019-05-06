@@ -1,55 +1,5 @@
 import numpy as np
 
-def get_dict_item(d):
-    l = []; n = []
-    if type(d) is dict:
-        keys, items = zip(*sorted(d.items(), key = lambda x:x[0]))
-        l += list(keys)
-        for key, item in zip(keys, items):
-            _l, _n = get_dict_item(item)
-            l += [key + '/' +i for i in _l]
-            n += [_n]
-    else:
-        return d, 0
-    return l, n
-
-def get_idxs(flat_tree_form):
-    '''
-    return parents, children, childless
-      parents: list of lists of idxs of parents of each child
-      children: list of lists of idxs of children of each parent
-      childless: list of idxs of the childless
-    '''
-    parents = []
-    children = [[] for _ in range(len(flat_tree_form) - 1)]
-    childless = []
-    mp = []
-    p = []
-    c = 0
-    for n in flat_tree_form:
-        for i in range(c, c + n): parents += [p + [i]]
-        if len(p) > 0: children[p[-1]] = list(range(c, c+n))
-        if n == 0:
-            childless += [p[-1]]
-            p[-1] += 1
-            while p[-1] == mp[-1] and len(p) > 1:
-                p.pop(-1); mp.pop(-1)
-                p[-1] += 1
-        else:
-            p += [c]
-            mp += [c + n]
-        c += n
-    return parents, children, childless
-
-def flatten(l):
-    for i in l:
-        if type(i) is list:
-            yield len(i)
-            for f in flatten(i):
-                yield f
-        else:
-            yield i
-
 def convert_to_child(parent, children):
     while len(children[parent]) > 0:
         parent =  np.random.choice(children[parent])
